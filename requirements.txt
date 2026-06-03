@@ -1,0 +1,16 @@
+# 밍동의 부자되기 봇 의존성 (Termux/PC 공통)
+# Termux에서는 버전 고정 시 빌드 실패할 수 있어 고정하지 않음.
+# lxml은 먼저 시스템 라이브러리 필요: pkg install libxml2 libxslt
+python-telegram-bot
+feedparser
+APScheduler
+python-dotenv
+pytz
+tzdata
+requests
+aiohttp
+beautifulsoup4
+lxml
+deep-translator
+
+# 사용 안 함 (설치 불필요): yfinance, pandas, numpy, anthropic

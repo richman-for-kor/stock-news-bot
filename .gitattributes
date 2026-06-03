@@ -1,0 +1,4 @@
+# 모든 텍스트 파일을 LF로 고정 (Termux/리눅스에서 .sh ^M 오류 방지)
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
