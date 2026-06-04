@@ -108,7 +108,7 @@ def check_red_alerts() -> list[dict]:
         price = _yahoo_price(symbol_map[key])
         if price and price >= info["alert_above"]:
             alerts.append({
-                "name": info["name"], "price": price,
+                "key": key, "name": info["name"], "price": price,
                 "threshold": info["alert_above"], "unit": info["unit"], "emoji": info["emoji"],
             })
     return alerts

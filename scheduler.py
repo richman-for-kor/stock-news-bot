@@ -81,12 +81,42 @@ async def send_hourly_summary(bot, channel_id: str):
         await send_html(bot, channel_id, "\n".join(lines))
 
 
+# ── 재알림 정책 ──────────────────────────────────
+# 직전 알림 대비 '이만큼 이상' 움직여야 다시 알린다 (반복 스팸 방지).
+# KRW=10은 사용자 지정. 나머지는 기본값이니 원하는 민감도로 조절하세요.
+REALERT_DELTA = {
+    "KRW":   10,     # 원/달러: 10원
+    "TNX":   0.10,   # 미국 10년물 금리: 0.10%p
+    "BRENT": 2.0,    # 브렌트유: $2
+    "VIX":   3.0,    # 공포지수: 3
+}
+# 마지막으로 알린 값 기억 (지표 key → price)
+_last_alerted: dict[str, float] = {}
+
+
 async def send_red_alert_check(bot, channel_id: str):
-    """절대 신호등 임계값 체크 — 15분마다"""
+    """절대 신호등 임계값 체크 — 15분마다 (의미 있는 변화가 있을 때만 재알림)"""
     try:
         alerts = await asyncio.to_thread(check_red_alerts)
-        if alerts:
-            await send_html(bot, channel_id, format_red_alert(alerts))
+        current_keys = {a["key"] for a in alerts}
+
+        # 임계 아래로 내려간 지표는 상태 초기화 → 다음에 다시 돌파하면 새로 알림
+        for k in list(_last_alerted):
+            if k not in current_keys:
+                del _last_alerted[k]
+
+        # 처음 돌파했거나, 직전 알림보다 delta 이상 움직인 지표만 추림
+        fresh = []
+        for a in alerts:
+            k, price = a["key"], a["price"]
+            last = _last_alerted.get(k)
+            delta = REALERT_DELTA.get(k, 0)
+            if last is None or abs(price - last) >= delta:
+                fresh.append(a)
+                _last_alerted[k] = price
+
+        if fresh:
+            await send_html(bot, channel_id, format_red_alert(fresh))
     except Exception as e:
         log.warning(f"신호등 체크 오류: {e}")
 
