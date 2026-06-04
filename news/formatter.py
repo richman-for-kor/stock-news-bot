@@ -11,13 +11,15 @@ def _e(text: str) -> str:
 
 def format_breaking(item: dict) -> str:
     title = _e(item.get("title", ""))
-    summary = _e(item.get("summary", ""))
     source = _e(item.get("source", ""))
     category = _e(item.get("category", ""))
     link = item.get("link", "")
+    ai_summary = item.get("ai_summary")  # ai_generate 결과 — 이미 HTML 안전, 재이스케이프 금지
     parts = [f"🚨 <b>속보 · {category}</b>", "", f'<a href="{link}">{title}</a>']
-    if summary:
-        parts += ["", summary]
+    if ai_summary:
+        parts += ["", f"📝 {ai_summary}"]
+    elif item.get("summary"):
+        parts += ["", _e(item["summary"])]
     parts += ["", f"📡 {source}"]
     return "\n".join(parts)
 

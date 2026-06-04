@@ -45,8 +45,10 @@ async def send_watchlist(bot, channel_id: str):
 # ────────────────────────────────────────────────
 async def send_breaking_news(bot, channel_id: str):
     """속보 감지 + 크롤링 속보 — 5분마다 (사전 필터는 원문, 매칭만 번역)"""
+    from news.summarizer import ai_summarize
     breaking = await asyncio.to_thread(collect_breaking_news)
     for item in breaking:
+        item["ai_summary"] = await asyncio.to_thread(ai_summarize, item)
         await send_html(bot, channel_id, format_breaking(item))
         mark_news_sent(item["link"])
 
@@ -57,7 +59,9 @@ async def send_breaking_news(bot, channel_id: str):
         if item["link"] and not is_news_sent(item["link"]):
             if any(kw.lower() in item["title"].lower() for kw in BREAKING_KEYWORDS):
                 tr = await asyncio.to_thread(translate_item, item)
-                await send_html(bot, channel_id, format_breaking({**tr, "category": tr["source"]}))
+                tr["category"] = tr["source"]
+                tr["ai_summary"] = await asyncio.to_thread(ai_summarize, tr)
+                await send_html(bot, channel_id, format_breaking(tr))
                 mark_news_sent(item["link"])
 
 
