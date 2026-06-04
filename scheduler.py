@@ -47,7 +47,7 @@ async def send_breaking_news(bot, channel_id: str):
     """속보 감지 + 크롤링 속보 — 5분마다 (사전 필터는 원문, 매칭만 번역)"""
     breaking = await asyncio.to_thread(collect_breaking_news)
     for item in breaking:
-        await send_html(bot, channel_id, format_breaking(item), preview=True)
+        await send_html(bot, channel_id, format_breaking(item))
         mark_news_sent(item["link"])
 
     # 크롤링 뉴스: 번역 없이 받아 속보 키워드만 검사 후, 매칭 건만 번역
