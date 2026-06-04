@@ -67,35 +67,93 @@ def filter_relevant(items: list[dict]) -> list[dict]:
     return [it for it in items if is_market_relevant(it)]
 
 
+# 폴백용 태그 추정 사전 (구체적 종목 → 섹터 순). 위에서부터 먼저 매칭.
+_TAG_MAP = [
+    ("삼성전자", ["삼성전자", "samsung electronics"]),
+    ("SK하이닉스", ["하이닉스", "sk hynix", "hynix"]),
+    ("엔비디아", ["엔비디아", "nvidia", "nvda"]),
+    ("테슬라", ["테슬라", "tesla", "tsla"]),
+    ("애플", ["애플", "apple", "aapl"]),
+    ("현대차", ["현대차", "hyundai motor"]),
+    ("TSMC", ["tsmc"]),
+    ("비트코인", ["비트코인", "bitcoin", "btc"]),
+    ("이더리움", ["이더리움", "ethereum"]),
+    ("리플", ["리플", "xrp"]),
+    ("나스닥", ["나스닥", "nasdaq"]),
+    ("S&P500", ["s&p", "sp500", "에스앤피"]),
+    ("다우", ["다우", "dow jones", "다우존스"]),
+    ("코스피", ["코스피", "kospi"]),
+    ("코스닥", ["코스닥", "kosdaq"]),
+    ("금", ["금값", "gold", "금 가격"]),
+    ("유가", ["유가", "crude", "브렌트", "oil price"]),
+    ("원/달러", ["원/달러", "환율", "원달러"]),
+    ("국채금리", ["국채", "treasury", "10년물"]),
+    ("반도체", ["반도체", "hbm", "semiconductor"]),
+    ("2차전지", ["2차전지", "배터리"]),
+    ("바이오", ["바이오", "제약"]),
+    ("방산", ["방산", "방위산업"]),
+]
+
+
+def guess_tag(item: dict) -> str | None:
+    """알려진 종목/지수/자산명을 헤드라인에서 찾아 태그 추정 (AI 폴백용)"""
+    text = (item.get("title", "") + " " + item.get("summary", "")).lower()
+    for tag, pats in _TAG_MAP:
+        if any(p in text for p in pats):
+            return tag
+    return None
+
+
 # ── AI 기반 관련성 필터 (배치 1회 호출) ─────────────
+def _keyword_fallback(items: list[dict]) -> list[dict]:
+    kept = filter_relevant(items)
+    for it in kept:
+        it["tag"] = guess_tag(it)
+    return kept
+
+
 def filter_relevant_ai(items: list[dict]) -> list[dict]:
-    """Gemini가 헤드라인 의미로 증시 관련만 선별. 실패 시 키워드 폴백."""
+    """Gemini가 증시 관련 뉴스만 선별 + 관련 종목/지수 태그까지 한 번에. 실패 시 키워드 폴백."""
     if not items:
         return []
     import re
+    import html as _html
     from market.ai_client import ai_available, ai_generate
 
     if not ai_available():
-        return filter_relevant(items)
+        return _keyword_fallback(items)
 
     numbered = "\n".join(f"{i+1}. {it.get('title','')}" for i, it in enumerate(items))
     prompt = (
         "아래는 뉴스 헤드라인 목록입니다. 이 중 '주식·증시·시장에 실제로 "
-        "영향을 주거나 시장/종목/거시경제 동향을 다루는' 뉴스의 번호만 고르세요.\n"
+        "영향을 주거나 시장/종목/거시경제 동향을 다루는' 뉴스만 고르고, "
+        "각 뉴스가 가장 관련된 대상을 한 단어 태그로 붙이세요.\n"
         "제외 대상: 정치 가십, 사건사고, 연예·스포츠·날씨, 단순 행사/홍보/채용, "
-        "인물 일상, 노조·내부 이슈 등 시장과 직접 무관한 것.\n\n"
+        "인물 일상, 노조·내부 이슈 등 시장과 직접 무관한 것.\n"
+        "태그는 종목명(예: 삼성전자, 엔비디아), 지수(예: 코스피, 나스닥), "
+        "자산(예: 비트코인, 금, 유가, 원/달러) 중 가장 적합한 하나.\n\n"
         f"{numbered}\n\n"
-        "관련 있는 번호만 쉼표로 답하세요. 예) 1, 4, 7"
+        "형식: '번호. 태그' 한 줄씩. 예)\n1. 삼성전자\n4. 나스닥\n7. 비트코인"
     )
     try:
-        resp = ai_generate(prompt, max_tokens=300)
-        nums = re.findall(r"\d+", resp)
-        if not nums:                       # 파싱 실패 → 키워드 폴백
-            return filter_relevant(items)
-        keep = {int(n) for n in nums}
-        return [items[i - 1] for i in sorted(keep) if 1 <= i <= len(items)]
+        resp = ai_generate(prompt, max_tokens=500)
+        mapping = {}
+        for line in resp.splitlines():
+            m = re.match(r"\s*(\d+)\s*[.)]\s*(.+)", line)
+            if m:
+                # ai_generate가 이스케이프해 둔 태그를 평문으로 되돌림(표시 시 1회만 이스케이프)
+                mapping[int(m.group(1))] = _html.unescape(m.group(2).strip())
+        if not mapping:                    # 파싱 실패 → 키워드 폴백
+            return _keyword_fallback(items)
+        result = []
+        for idx, tag in sorted(mapping.items()):
+            if 1 <= idx <= len(items):
+                it = items[idx - 1]
+                it["tag"] = tag
+                result.append(it)
+        return result
     except Exception:
-        return filter_relevant(items)      # AI 오류 → 키워드 폴백
+        return _keyword_fallback(items)    # AI 오류 → 키워드 폴백
 
 
 def filter_news_by_category_ai(news_by_category: dict[str, list[dict]]) -> dict[str, list[dict]]:

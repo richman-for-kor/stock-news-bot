@@ -38,7 +38,9 @@ def format_hourly_summary(news_by_category: dict[str, list[dict]]) -> str:
         for item in items[:5]:
             title = _e(item.get("title", ""))
             link = item.get("link", "")
-            lines.append(f'• <a href="{link}">{title}</a>')
+            tag = item.get("tag")
+            tag_part = f"  <i>({_e(tag)})</i>" if tag else ""
+            lines.append(f'• <a href="{link}">{title}</a>{tag_part}')
 
     if not has_any:
         return ""

@@ -83,8 +83,11 @@ async def send_hourly_summary(bot, channel_id: str):
     if new_items:
         lines = ["📰 <b>크롤링 뉴스</b>", ""]
         for item in new_items[:8]:
-            title = item["title"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            lines.append(f'• <a href="{item["link"]}">{title}</a>  <i>{item["source"]}</i>')
+            esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            title = esc(item["title"])
+            tag = item.get("tag")
+            tag_part = f" <i>({esc(tag)})</i>" if tag else ""
+            lines.append(f'• <a href="{item["link"]}">{title}</a>{tag_part} <i>{esc(item["source"])}</i>')
             mark_news_sent(item["link"])
         await send_html(bot, channel_id, "\n".join(lines))
 
