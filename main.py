@@ -103,7 +103,9 @@ async def on_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         from news.collector import collect_all_news
         from news.formatter import format_hourly_summary
+        from news.relevance import filter_news_by_category_ai
         news = await asyncio.to_thread(collect_all_news)
+        news = await asyncio.to_thread(filter_news_by_category_ai, news)
         text = format_hourly_summary(news) or "📭 새 뉴스가 없습니다."
         await msg.delete()
         await send_html(context.bot, chat_id, text)

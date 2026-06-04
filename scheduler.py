@@ -62,16 +62,20 @@ async def send_breaking_news(bot, channel_id: str):
 
 
 async def send_hourly_summary(bot, channel_id: str):
-    """매 정시 뉴스 요약 + 크롤링 뉴스"""
+    """매 정시 뉴스 요약 + 크롤링 뉴스 (AI 관련성 필터)"""
+    from news.relevance import filter_news_by_category_ai, filter_relevant_ai
     news = await asyncio.to_thread(collect_all_news)
     for items in news.values():
         for item in items:
             mark_news_sent(item["link"])
+    # 증시 관련 뉴스만 통과 (AI, 블로킹 → 스레드)
+    news = await asyncio.to_thread(filter_news_by_category_ai, news)
     text = format_hourly_summary(news)
     await send_html(bot, channel_id, text)
 
     crawled = await crawl_all_news()
-    new_items = [i for i in crawled if i["link"] and not is_news_sent(i["link"])]
+    candidates = [i for i in crawled if i["link"] and not is_news_sent(i["link"])]
+    new_items = await asyncio.to_thread(filter_relevant_ai, candidates)
     if new_items:
         lines = ["📰 <b>크롤링 뉴스</b>", ""]
         for item in new_items[:8]:
