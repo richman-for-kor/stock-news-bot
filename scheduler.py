@@ -264,7 +264,8 @@ def setup_scheduler(bot, channel_id: str) -> AsyncIOScheduler:
                       args=[bot, channel_id], id="breaking_news")
     scheduler.add_job(send_red_alert_check, "interval", minutes=15,
                       args=[bot, channel_id], id="red_alert_check")
-    scheduler.add_job(send_hourly_summary, CronTrigger(minute=0, timezone=KST),
+    # 정시 요약 — 3시간마다 (00,03,06,09,12,15,18,21시 KST)
+    scheduler.add_job(send_hourly_summary, CronTrigger(hour="*/3", minute=0, timezone=KST),
                       args=[bot, channel_id], id="hourly_summary")
     # 국장 개장 07:00 / 마감 20:30
     scheduler.add_job(send_korean_briefing, CronTrigger(hour=7, minute=0, timezone=KST),
